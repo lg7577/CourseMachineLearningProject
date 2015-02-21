@@ -1,0 +1,73 @@
+---
+title: "Machine Learning Project"
+author: "Boudewijn Aasman"
+date: "February 19, 2015"
+output: html_document
+---
+Reading in the data and loading the appropriate packages
+```{r,message=FALSE}
+rm(list = ls())
+library(caret)
+library(ggplot2)
+library(rattle)
+library(gmodels)
+setwd("~/Documents/machinelearningP")
+train = read.csv("pml-training.csv",header = TRUE)
+test = read.csv("pml-testing.csv",header = TRUE)
+```
+
+We know want to partition the training data set into another training and test data set. I arbitrarily chose 80% to go into the training set.
+```{r}
+inTrain = createDataPartition(y = train$classe, p = .8,list = FALSE)
+rTrain = train[inTrain,]
+rTest = train[-inTrain,]
+```
+
+
+I then create a subset with variables expected to be correlated with how well the person performed the task. Because a classe of A means they did it correctly and the rest of the letters means they did it incorrectly, I labeled them appropriately in order to get a more simplified model.
+```{r}
+totalTrain = data.frame(rTrain$classe,rTrain$total_accel_belt,rTrain$total_accel_arm,
+                   rTrain$total_accel_forearm,rTrain$total_accel_dumbbell)
+colnames(totalTrain) = c("classe","total_accel_belt","total_accel_arm", 'total_accel_forearm','total_accel_dumbbell')
+totalTrain$classe = as.character(totalTrain$classe)
+for(i in 1:nrow(totalTrain)){
+  if(totalTrain$classe[i] %in% c("B","C","D","E")){
+    totalTrain$classe[i] = "poor"
+  } else{
+    totalTrain$classe[i] = "good"
+  }
+}
+rTest$classe = as.character(rTest$classe)
+for(i in 1:nrow(rTest)){
+  if(rTest$classe[i] %in% c("B","C","D","E")){
+    rTest$classe[i] = "poor"
+  } else{
+    rTest$classe[i] = "good"
+  }
+}
+```
+We can now call on the training function to create the model using the regression tree technique
+```{r,message=FALSE}
+modFit = train(factor(classe) ~ .,data = totalTrain, method = "rpart")
+```
+```{r}
+print(modFit$finalModel)
+pred = predict(modFit,newdata = rTest)
+fancyRpartPlot(modFit$finalModel)
+```
+
+```{r}
+CrossTable(rTest$classe,pred,prop.c = FALSE, prop.chisq = FALSE,
+           prop.r = FALSE,dnn = c("Actual","Predicted"))
+```
+As we can see, we correctly assumed the right technique was used 75.5% of the time.
+
+We can now create a prediction for the original test data set
+```{r}
+finalPred = predict(modFit,test)
+finalPred
+```
+Ultimately, using the regression tree model, we predict none of the 20 observations in the original test set to have used the perfect technique
+
+
+
